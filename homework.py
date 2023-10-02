@@ -37,15 +37,19 @@ handler = logging.StreamHandler()
 
 
 class StatusCodeException(Exception):
+    """Status code other than 200."""
+
     pass
 
 
 class ListEmpty(Exception):
+    """Empty list."""
+
     pass
 
 
 def check_tokens():
-    '''Checks the availability of environment variables.'''
+    """Checks the availability of environment variables."""
     environment_variables = {
         'PRACTICUM_TOKEN': PRACTICUM_TOKEN,
         'TELEGRAM_TOKEN': TELEGRAM_TOKEN,
@@ -64,7 +68,7 @@ def check_tokens():
 
 
 def send_message(bot, message):
-    '''Sends a message to Telegram chat.'''
+    """Sends a message to Telegram chat."""
     try:
         bot.send_message(TELEGRAM_CHAT_ID, message)
         logging.debug(f'Бот отправил сообщение "{message}"')
@@ -73,13 +77,13 @@ def send_message(bot, message):
 
 
 def get_api_answer(timestamp):
-    '''Makes a request to the API service endpoint.'''
+    """Makes a request to the API service endpoint."""
     payload = {'from_date': timestamp}
     try:
         response = requests.get(ENDPOINT, headers=HEADERS, params=payload)
     except Exception as error:
         logging.error(
-            f'Сбой в работе программы: Эндпоинт {ENDPOINT} недоступен. Ошибка: {error}'
+            f'Сбой в работе: Эндпоинт {ENDPOINT} недоступен. {error}'
         )
     if response.status_code != 200:
         raise StatusCodeException('Status code отличный от "200"')
@@ -87,7 +91,7 @@ def get_api_answer(timestamp):
 
 
 def check_response(response):
-    '''Checks the API response for consistency.'''
+    """Checks the API response for consistency."""
     request_errors = {
         'UnknownError': 'Неверный формат from_date',
         'not_authenticated': 'Учетные данные не были предоставлены.',
@@ -113,7 +117,7 @@ def check_response(response):
 
 
 def parse_status(homework):
-    '''Retrieves the homework status.'''
+    """Retrieves the homework status."""
     try:
         homework_name = homework['homework_name']
     except KeyError:
