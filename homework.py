@@ -53,17 +53,21 @@ def check_tokens():
         'TELEGRAM_TOKEN': TELEGRAM_TOKEN,
         'TELEGRAM_CHAT_ID': TELEGRAM_CHAT_ID,
     }
-    if all([variable for variable in environment_variables.values()]):
-        logger.info('Все обязательные переменные окружения заданы.')
-        return True
-    for name, variable in environment_variables.items():
-        if variable is None:
+    if not all([variable for variable in environment_variables.values()]):
+        missing_variables = []
+        for name, variable in environment_variables.items():
+            if variable is None:
+                missing_variables.append(name)
+        if missing_variables:
             logger.critical(
-                f'Отсутствует обязательная переменная окружения: {name}'
+                'Отсутствуют обязательные переменные окружения: '
+                f'{", ".join(missing_variables)}'
             )
-        raise EnvironmentVariableError(
-            'Отсутствует обязательная переменная окружения'
-        )
+            raise EnvironmentVariableError(
+                'Отсутствуют обязательные переменные окружения: '
+                f'{", ".join(missing_variables)}'
+            )
+    logger.info('Все обязательные переменные окружения заданы.')
 
 
 def send_message(bot, message):
@@ -78,15 +82,28 @@ def send_message(bot, message):
 
 def get_api_answer(timestamp):
     """Make a request to the API service endpoint."""
-    payload = {'from_date': timestamp}
+    request_parameters = {
+        'endpoint': ENDPOINT,
+        'headers': HEADERS,
+        'params': {'from_date': timestamp},
+    }
     try:
         logger.info(
-            f'Программа начала запрос: адрес - {ENDPOINT}, '
-            f'заголовок - {HEADERS}, параметры - {payload}'
+            'Программа начала запрос: '
+            f'адрес - {request_parameters["endpoint"]}, '
+            f'заголовок - {request_parameters["headers"]}, '
+            f'параметры - {request_parameters["params"]}'
         )
-        response = requests.get(ENDPOINT, headers=HEADERS, params=payload)
+        response = requests.get(
+            request_parameters['endpoint'],
+            headers=request_parameters['headers'],
+            params=request_parameters['params'],
+        )
     except requests.RequestException as error:
-        logger.error(f'Сбой в работе: Эндпоинт {ENDPOINT} недоступен. {error}')
+        raise error(
+            'Сбой в работе: '
+            f'Эндпоинт {request_parameters["endpoint"]} недоступен'
+        )
     if response.status_code != HTTPStatus.OK:
         raise StatusCodeException('Status code отличный от "200"')
     return response.json()
@@ -101,12 +118,14 @@ def check_response(response):
     if not isinstance(response, dict):
         raise TypeError('Ожидается словарь')
     if 'homeworks' not in response:
-        logger.error(f'Ответ API: {request_errors[response["code"]]}')
-        raise EmptyResponseApiException('В ответе API Нет ключа "homeworks"')
-    if type(response['homeworks']) != list:
+        raise EmptyResponseApiException(
+            f'Ответ API: {request_errors[response["code"]]}'
+        )
+    homeworks = response['homeworks']
+    if not isinstance(homeworks, list):
         raise TypeError('Ожидается список')
     logger.info('Ответ API соответствует ожидаемому')
-    return True
+    return homeworks
 
 
 def parse_status(homework):
@@ -114,7 +133,6 @@ def parse_status(homework):
     try:
         homework_name = homework['homework_name']
     except KeyError:
-        logger.error('Ключ "homework_name" не найден')
         raise KeyError('Ключ "homework_name" не найден')
     if homework['status'] in HOMEWORK_VERDICTS:
         verdict = HOMEWORK_VERDICTS[homework['status']]
@@ -135,16 +153,15 @@ def main():
     while True:
         try:
             response = get_api_answer(timestamp)
-            if check_response(response):
-                homeworks = response['homeworks']
-                if len(homeworks) != 0:
-                    new_message = parse_status(homeworks[0])
-                else:
-                    new_message = 'Отсутствие в ответе новых статусов'
-                    logger.debug('Отсутствие в ответе новых статусов')
-                if new_message != current_message:
-                    send_message(bot, new_message)
-                    current_message = new_message
+            homeworks = check_response(response)
+            if homeworks:
+                new_message = parse_status(homeworks[0])
+            else:
+                new_message = 'Отсутствие в ответе новых статусов'
+                logger.debug('Отсутствие в ответе новых статусов')
+            if new_message != current_message:
+                send_message(bot, new_message)
+                current_message = new_message
         except EmptyResponseApiException:
             logger.error('Ответ API - пустой список')
         except Exception as error:
