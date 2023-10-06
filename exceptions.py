@@ -14,3 +14,9 @@ class EnvironmentVariableError(Exception):
     """A required environment variable is missing."""
 
     pass
+
+
+class EndpointAvailabilityError(Exception):
+    """The request to the API service endpoint is not available."""
+
+    pass

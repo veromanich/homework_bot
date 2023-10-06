@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 
 from exceptions import (
     EmptyResponseApiException,
+    EndpointAvailabilityError,
     EnvironmentVariableError,
     StatusCodeException,
 )
@@ -83,26 +84,20 @@ def send_message(bot, message):
 def get_api_answer(timestamp):
     """Make a request to the API service endpoint."""
     request_parameters = {
-        'endpoint': ENDPOINT,
+        'url': ENDPOINT,
         'headers': HEADERS,
         'params': {'from_date': timestamp},
     }
     try:
         logger.info(
-            'Программа начала запрос: '
-            f'адрес - {request_parameters["endpoint"]}, '
-            f'заголовок - {request_parameters["headers"]}, '
-            f'параметры - {request_parameters["params"]}'
+            'Программа начала запрос: адрес - {url}, заголовок - '
+            '{headers}, параметры - {params}'.format(**request_parameters)
         )
-        response = requests.get(
-            request_parameters['endpoint'],
-            headers=request_parameters['headers'],
-            params=request_parameters['params'],
-        )
-    except requests.RequestException as error:
-        raise error(
+        response = requests.get(**request_parameters)
+    except requests.RequestException:
+        raise EndpointAvailabilityError(
             'Сбой в работе: '
-            f'Эндпоинт {request_parameters["endpoint"]} недоступен'
+            f'Эндпоинт {request_parameters["url"]} недоступен'
         )
     if response.status_code != HTTPStatus.OK:
         raise StatusCodeException('Status code отличный от "200"')
@@ -140,7 +135,6 @@ def parse_status(homework):
             f'Изменился статус проверки работы "{homework_name}". {verdict}'
         )
         return f'Изменился статус проверки работы "{homework_name}". {verdict}'
-    logger.error(f'Неожиданный статус проверки работы "{homework_name}"')
     raise ValueError(f'Неожиданный статус проверки работы "{homework_name}"')
 
 
